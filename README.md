@@ -34,3 +34,17 @@ Este repositório contém o código-fonte e os arquivos de entrega para o projet
 * **`requirements.txt`**: Lista de bibliotecas Python necessárias para rodar o projeto.
 * **`evidencias.zip`**: Arquivo compactado com os screenshots que comprovam o funcionamento dos endpoints da API.
 * **`prints_popular.zip`**: Arquivo compactado com os screenshots que comprovam a inserção de dados no banco.
+
+---
+
+## 🧪 Como Testar a API
+
+Com o servidor da API rodando (após o passo `uvicorn main_api:app --reload`), a forma mais fácil de testar todos os endpoints é através da documentação interativa gerada pelo FastAPI.
+
+Acesse no seu navegador o seguinte endereço:
+
+### **➡️ [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**
+
+Nessa página, você poderá clicar em cada endpoint, usar o botão "Try it out" e "Execute" para ver os resultados em tempo real.
+
+---
