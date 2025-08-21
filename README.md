@@ -1,4 +1,4 @@
-# Projeto Final - API para Organização de Jogos (NoSQL)
+# Projeto  -  Organização de Jogos (NoSQL)
 
 Este repositório contém o código-fonte e os arquivos de entrega para o projeto final da disciplina de NoSQL. A aplicação consiste em uma API desenvolvida com Python e FastAPI, conectada a um banco de dados MongoDB.
 
