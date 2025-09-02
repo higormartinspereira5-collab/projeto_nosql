@@ -1,31 +1,51 @@
-# Importa as ferramentas necessárias
 from fastapi import FastAPI, HTTPException
 from pymongo import MongoClient
 from bson.objectid import ObjectId
+from fastapi import FastAPI, HTTPException
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+import redis
+import json # <-- ADICIONE ESTA LINHA
 
-# --- CONFIGURAÇÃO INICIAL DA API ---
 app = FastAPI(
     title="Marca Jogo API",
     description="API para organizar e consultar partidas de esportes.",
     version="1.0.0"
 )
 
-# --- CONEXÃO COM O BANCO DE DADOS MONGODB ---
-# Lembre-se de colar a sua Connection String correta aqui!
+
 MONGO_URI = "mongodb+srv://usuario_projeto:32224447@cluster0.m6raoxu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client['marca_jogo_db']
 
-# --- ENDPOINTS DA API ---
+# --- CONEXÃO COM O CACHE REDIS ---
+import redis
 
-# Endpoint raiz, apenas para teste
+
+redis_client = redis.Redis(
+    host='redis-16380.c273.us-east-1-2.ec2.cloud.redislabs.com', 
+    port=16380, 
+    password= 'BFAlMMJS8M6EEN29Ut5rU9lSNyIswyrP',
+    db=0,
+    decode_responses=True 
+)
+
+# Bloco para testar a conexão e garantir que tudo está funcionando
+try:
+    status = redis_client.ping()
+    print(f"Conexão com o servidor Redis estabelecida com sucesso!")
+except redis.exceptions.ConnectionError as e:
+    print(f"Não foi possível conectar ao servidor Redis: {e}")
+
+# --- ENDPOINTS DA API ---
+# ... (resto do seu código)
+
+
 @app.get("/")
 def read_root():
     return {"Status": "API do Marca Jogo está online!"}
 
-# ====================================================================
-# === ENTREGA 3: BUSCA USANDO UM ÍNDICE (createIndex)
-# ====================================================================
+
 
 @app.get("/partidas/buscar")
 def buscar_partidas_por_texto(termo: str):
@@ -54,33 +74,45 @@ def buscar_partidas_por_texto(termo: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ocorreu um erro interno: {e}")
 
-# ====================================================================
-# === ENTREGA 4: DUAS OPERAÇÕES COM AGGREGATION PIPELINE
-# ====================================================================
 
 # --- OPERAÇÃO 1: Listar partidas com detalhes do esporte e organizador ---
 @app.get("/partidas/detalhadas")
-def obter_partidas_com_detalhes():
+def obter_partidas_com_detalhhes():
     """
-    Lista todas as partidas com informações detalhadas do esporte e do organizador,
-    usando um Aggregation Pipeline com $lookup para "juntar" coleções.
+    Lista todas as partidas com informações detalhadas do esporte e do organizador.
+    Esta função usa cache com expiração de 5 minutos no Redis.
     """
-    pipeline = [
-        {"$lookup": {"from": "esportes", "localField": "esporte_id", "foreignField": "_id", "as": "detalhes_esporte"}},
-        {"$lookup": {"from": "usuarios", "localField": "organizador_id", "foreignField": "_id", "as": "detalhes_organizador"}},
-        {"$unwind": "$detalhes_esporte"},
-        {"$unwind": "$detalhes_organizador"},
-        {"$project": {
-            "_id": 0, "id_partida": "$_id", "descricao_partida": "$descricao", "local": "$local", "data_hora": "$data_hora",
-            "esporte": "$detalhes_esporte.nome", "organizador": "$detalhes_organizador.nome",
-        }}
-    ]
+    # Define uma chave única para este resultado no cache do Redis
+    cache_key = "partidas_detalhadas_cache"
 
-    resultados = list(db.partidas.aggregate(pipeline))
-    for r in resultados:
-        r['id_partida'] = str(r['id_partida'])
+    # 1. Tenta buscar o resultado no Redis primeiro
+    dados_em_cache = redis_client.get(cache_key)
 
-    return resultados
+    if dados_em_cache:
+        print("Dados encontrados no cache! (Cache Hit)")
+        # Se encontrou, converte a string JSON de volta para uma lista Python e a retorna
+        return json.loads(dados_em_cache)
+    
+    else:
+        print("Dados não encontrados no cache. Buscando no MongoDB... (Cache Miss)")
+        # 2. Se não encontrou no cache, executa a consulta pesada no MongoDB
+        pipeline = [
+            {"$lookup": {"from": "esportes", "localField": "esporte_id", "foreignField": "_id", "as": "detalhes_esporte"}},
+            {"$lookup": {"from": "usuarios", "localField": "organizador_id", "foreignField": "_id", "as": "detalhes_organizador"}},
+            {"$unwind": "$detalhes_esporte"},
+            {"$unwind": "$detalhes_organizador"},
+            {"$project": {
+                "_id": 0, "id_partida": {"$toString": "$_id"}, "descricao_partida": "$descricao", "local": "$local", "data_hora": "$data_hora",
+                "esporte": "$detalhes_esporte.nome", "organizador": "$detalhes_organizador.nome",
+            }}
+        ]
+        resultados = list(db.partidas.aggregate(pipeline))
+        
+        # 3. Salva o resultado no Redis COM EXPIRAÇÃO de 300 segundos (5 minutos)
+        # Usamos json.dumps para converter a lista Python em uma string JSON
+        redis_client.setex(cache_key, 300, json.dumps(resultados))
+
+        return resultados
 
 # --- OPERAÇÃO 2: Contar quantas partidas existem por esporte ---
 @app.get("/estatisticas/partidas-por-esporte")
