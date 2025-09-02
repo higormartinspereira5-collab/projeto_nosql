@@ -1,5 +1,5 @@
 # Importa as ferramentas necessárias
-from pymongo import MongoClient
+from pymongo import MongoClient, TEXT # LINHA DE IMPORTAÇÃO ATUALIZADA
 from datetime import datetime, timedelta
 
 # --- CONEXÃO COM O BANCO ---
@@ -18,6 +18,15 @@ db.esportes.drop()
 db.usuarios.drop()
 db.partidas.drop()
 print("Coleções antigas limpas.")
+
+# Cria o índice de texto para os campos 'descricao' e 'local' da coleção partidas.
+# Isso é necessário para que a busca textual ($text: {$search: ...}) funcione.
+db.partidas.create_index([
+    ('descricao', TEXT),
+    ('local', TEXT)
+], name='busca_texto_partidas')
+print("Índice de texto criado com sucesso na coleção 'partidas'.")
+# --- FIM DO TRECHO ADICIONADO ---
 
 # --- Criando Dados de Exemplo ---
 
